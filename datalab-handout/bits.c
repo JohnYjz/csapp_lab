@@ -142,8 +142,8 @@ NOTES:
  *   Max ops: 14
  *   Rating: 1
  */
-int bitXor(int x, int y) {
-  return (x & y) + ~(x & y);
+int bitXor(int x, int y) {  // 涉及到与非门转换，不用背这个吧 - done
+  return ~(~x&~y)&~(x&y);
 }
 /* 
  * tmin - return minimum two's complement integer 
@@ -151,10 +151,8 @@ int bitXor(int x, int y) {
  *   Max ops: 4
  *   Rating: 1
  */
-int tmin(void) {
-  int origin_val = 1;
-  return origin_val << 31;
-
+int tmin(void) { // - done
+  return 0x1<<31;
 }
 //2
 /*
@@ -164,10 +162,24 @@ int tmin(void) {
  *   Max ops: 10
  *   Rating: 1
  */
-int isTmax(int x) {
-  int origin_val = 1;
-  int min = origin_val << 31;
-  return (~min) == x;
+int isTmax(int x) { // - done
+  /* 
+  假设 x = 0x7f ff ff ff
+  y = x + 1 = 0x80 00 00 00
+  z = x+y = -1 = 0xff ff ff ff
+  w = ~z = 0x00 00 00 00
+  判断 w == 0
+
+  如果x = -1 = 0xffffff...
+  y = x + 1 = 0x000000....
+  z = x + y = 0xffffff....
+   */
+  int y = x + 1;
+  int z = x + y;
+  int w = ~z;
+  y = !y; // 排除 -1
+  w = w + y;
+  return !w;
 }
 /* 
  * allOddBits - return 1 if all odd-numbered bits in word set to 1
@@ -177,9 +189,12 @@ int isTmax(int x) {
  *   Max ops: 12
  *   Rating: 2
  */
-int allOddBits(int x) {
-  int mask_code = 0xAAAAAAAA;
-  return (x & mask_code) == mask_code;
+int allOddBits(int x) { // - done
+  int a = 0xAA;
+  int b = (a << 8) + a; //0xAA AA
+  int c = (b << 8) + a; //0xAA AA AA
+  int mask_code = (c << 8) + a; //0xAA AA AA AA
+  return !((x & mask_code) ^ mask_code);
 }
 /* 
  * negate - return -x 
@@ -188,8 +203,14 @@ int allOddBits(int x) {
  *   Max ops: 5
  *   Rating: 2
  */
-int negate(int x) {
-  return 2;
+int negate(int x) { // - done
+  /* 
+  0001 = 1
+  取反1110 = -8 + 4 + 2  再加一 为 -1
+  0011 = 3
+  取反 1100 -4, 再加一 = -3
+   */
+  return (~x) + 1;
 }
 //3
 /* 
@@ -201,8 +222,17 @@ int negate(int x) {
  *   Max ops: 15
  *   Rating: 3
  */
-int isAsciiDigit(int x) {
-  return 2;
+int isAsciiDigit(int x) { // - done
+  /* 
+  即
+  x - 0x39 <= 0
+  x - 0x30 >= 0  
+   */
+  int sub1 = x + (~0x39 + 1);
+  int sub2 = x + (~0x30 + 1);
+  int sign1 = sub1 >> 31;
+  int sign2 = sub2 >> 31;
+  return (!sub1 | sign1) & (!sub2 | !sign2);
 }
 /* 
  * conditional - same as x ? y : z 
@@ -211,8 +241,12 @@ int isAsciiDigit(int x) {
  *   Max ops: 16
  *   Rating: 3
  */
-int conditional(int x, int y, int z) {
-  return 2;
+int conditional(int x, int y, int z) { // - done
+  // 若 x == 0 mask_code1 = ffffffff, mask_code2 = 0
+  // 若 x != 0 mask_code2 = ffffffff, mask_code1 = 0
+  int mask_code1 = (!!x) << 31 >> 31;
+  int mask_code2 = (!x) << 31 >> 31;
+  return (mask_code1 & y) | (mask_code2 & z);
 }
 /* 
  * isLessOrEqual - if x <= y  then return 1, else return 0 
@@ -221,8 +255,18 @@ int conditional(int x, int y, int z) {
  *   Max ops: 24
  *   Rating: 3
  */
-int isLessOrEqual(int x, int y) {
-  return 2;
+int isLessOrEqual(int x, int y) { // - done
+  /*
+  x - y <= 0
+  z = x + -y
+  如果 sign_z == 1 return 1
+  */
+  int sign_x = (x >> 31) & 1;
+  int sign_y = (y >> 31) & 1;
+  int same_sign = !(sign_x ^ sign_y);
+  int negative_y = (~y) + 1;
+  int sub_result = x + negative_y;
+  return ((!same_sign) & sign_x) | (same_sign & (!!(!sub_result | (sub_result >> 31))));
 }
 //4
 /* 
@@ -233,10 +277,15 @@ int isLessOrEqual(int x, int y) {
  *   Max ops: 12
  *   Rating: 4 
  */
-int logicalNeg(int x) {
-  return 2;
+int logicalNeg(int x) { // - done
+  /*
+  -0 | 0 == 0
+  tmin | -tmin == 1
+  其余 == 1
+  */
+  return ((x | ((~x) + 1)) >> 31) + 1;
 }
-/* howManyBits - return the minimum number of bits required to represent x in
+/* howManyBits - return the minimum number of bits required to./b represent x in
  *             two's complement
  *  Examples: howManyBits(12) = 5
  *            howManyBits(298) = 10
@@ -249,7 +298,24 @@ int logicalNeg(int x) {
  *  Rating: 4
  */
 int howManyBits(int x) {
-  return 0;
+  // 直接copy的答案
+  int a = ((!x) << 31) >> 31; //当x为0时，a全为1，否则全为0
+  int b = ((!~x) << 31) >> 31;//当x为-1时，b全为1，否则全为0
+  int bit_16, bit_8, bit_4, bit_2, bit_1;
+  int sum;
+  int op = x ^ (x >> 31);
+  bit_16 = (!!(op >> 16)) << 4;
+  op = op >> bit_16;
+  bit_8 = (!!(op >> 8)) << 3;
+  op = op >> bit_8;
+  bit_4 = (!!(op >> 4)) << 2;
+  op = op >> bit_4;
+  bit_2 = (!!(op >> 2)) << 1;
+  op = op >> bit_2;
+  bit_1 = (!!(op >> 1));
+  op = op >> bit_1;
+  sum = 2 + bit_16 + bit_8 + bit_4 + bit_2 + bit_1;
+  return (a & 1) | (b & 1) | (~a & ~b&sum);
 }
 //float
 /* 
@@ -263,8 +329,23 @@ int howManyBits(int x) {
  *   Max ops: 30
  *   Rating: 4
  */
-unsigned floatScale2(unsigned uf) {
-  return 2;
+unsigned floatScale2(unsigned uf) { // - done
+  int sign = uf & 0x80000000;
+  int exp = uf >> 23 & 0xff;
+  int frac = uf & 0x7fffff;
+  if (exp == 0xff) { // NaN 无穷
+    return uf;
+  }
+  if (exp == 0 && frac < 0x7fffff) {
+    return sign | (exp << 23) | (frac << 1);
+  }
+  if (exp == 0 && frac == 0x7fffff) {
+    return sign | ((exp + 1) << 23) | (frac << 1);
+  }
+  if (exp == 0xfe) {
+    return sign | (0xff << 23) | 0x000000;
+  }
+  return sign | ((exp + 1) << 23) | frac;
 }
 /* 
  * floatFloat2Int - Return bit-level equivalent of expression (int) f
@@ -279,7 +360,21 @@ unsigned floatScale2(unsigned uf) {
  *   Rating: 4
  */
 int floatFloat2Int(unsigned uf) {
-  return 2;
+  int sign = uf >> 31;
+  int exp = ((uf & 0x7f800000) >> 23) - 127;
+  int frac = (uf & 0x007fffff) | 0x00800000; // 指数最低位置1，尾数取出
+  if(!(uf & 0x7fffffff)) return 0; // 如果全为0 ，返回 0
+
+  if(exp > 31) return 0x80000000;
+  if(exp < 0) return 0;
+
+// 小数部分转换为整数
+  if(exp > 23) frac <<= (exp - 23);
+  else frac >>= (23 - exp);
+
+  if(!((frac >> 31) ^ sign)) return frac; // 小数转整数后，如果符号相同，直接返回
+  else if(frac >> 31) return 0x80000000; // 原来为负，结果为整，返回下界
+  else return ~frac + 1; // 原来为负，结果为正，返回补码
 }
 /* 
  * floatPower2 - Return bit-level equivalent of the expression 2.0^x
@@ -295,5 +390,28 @@ int floatFloat2Int(unsigned uf) {
  *   Rating: 4
  */
 unsigned floatPower2(int x) {
-    return 2;
+  /* 
+  当x = 3；
+  2^3 = 8
+  即
+  0010 << ( 3 - 1) == 1000
+  
+
+  2 = 0010
+  即
+  1.0 * (2 ^ 1)，符号位为0
+  浮点数的形式为 (2^E) * (M)
+  即 E = 1， M = 1.0
+  再计算 E = exp  - bios = exp - 127
+        => exp = E + 127 = 128
+
+  
+   */
+
+  int inf;
+	inf = 0xff << 23; // 无穷大
+	x += 127;
+	if(x <= 0) return 0x0;
+	else if(x >= 255) return inf;
+	return x << 23;
 }
